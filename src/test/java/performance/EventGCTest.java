@@ -5,7 +5,10 @@ import engine.EventBus;
 import engine.EventProcessor;
 import engine.EventType;
 
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
 import java.time.Instant;
+import java.util.List;
 
 public class EventGCTest {
 
@@ -22,8 +25,15 @@ public class EventGCTest {
 
         EventBus eventBus = new EventBus(processor);
 
-        Runtime runtime = Runtime.getRuntime();
+        /*
+         * Take GC measurements BEFORE the workload.
+         */
+        long gcCollectionsBefore = getGcCollectionCount();
+        long gcTimeBefore = getGcCollectionTime();
 
+        /*
+         * Start measuring total execution time.
+         */
         long start = System.nanoTime();
 
         for (int i = 0; i < EVENTS; i++) {
@@ -36,55 +46,108 @@ public class EventGCTest {
             );
 
             eventBus.publish(event);
-
-            if (i > 0 && i % 5_000_000 == 0) {
-
-                long used =
-                        runtime.totalMemory()
-                                - runtime.freeMemory();
-
-                System.out.println(
-                        "Events: " + i
-                                + " | Used memory: "
-                                + formatBytes(used)
-                );
-            }
         }
 
         long elapsed = System.nanoTime() - start;
 
-        double seconds = elapsed / 1_000_000_000.0;
+        /*
+         * Take GC measurements AFTER the workload.
+         */
+        long gcCollectionsAfter = getGcCollectionCount();
+        long gcTimeAfter = getGcCollectionTime();
+
+        /*
+         * Calculate differences.
+         */
+        long gcCollections =
+                gcCollectionsAfter - gcCollectionsBefore;
+
+        long gcTime =
+                gcTimeAfter - gcTimeBefore;
+
+        double seconds =
+                elapsed / 1_000_000_000.0;
+
+        double throughput =
+                EVENTS / seconds;
+
+        double gcOverhead =
+                (gcTime / 1000.0) / seconds * 100.0;
 
         System.out.println();
         System.out.println("=================================");
         System.out.println("           GC TEST");
         System.out.println("=================================");
-        System.out.println("Events       : " + EVENTS);
-        System.out.println("Time         : " + seconds + " sec");
-        System.out.println("=================================");
-        System.out.println();
+
+        System.out.println("Events          : " + EVENTS);
+
         System.out.println(
-                "Run with GC logging to see actual GC activity."
+                "Execution time  : "
+                        + String.format("%.3f", seconds)
+                        + " sec"
         );
+
+        System.out.println(
+                "Throughput      : "
+                        + String.format("%.2f", throughput)
+                        + " events/sec"
+        );
+
+        System.out.println(
+                "GC collections  : "
+                        + gcCollections
+        );
+
+        System.out.println(
+                "GC time         : "
+                        + gcTime
+                        + " ms"
+        );
+
+        System.out.println(
+                "GC overhead     : "
+                        + String.format("%.2f", gcOverhead)
+                        + "%"
+        );
+
+        System.out.println("=================================");
     }
 
-    private static String formatBytes(long bytes) {
+    private static long getGcCollectionCount() {
 
-        if (bytes < 1024) {
-            return bytes + " B";
+        long total = 0;
+
+        List<GarbageCollectorMXBean> beans =
+                ManagementFactory.getGarbageCollectorMXBeans();
+
+        for (GarbageCollectorMXBean bean : beans) {
+
+            long count = bean.getCollectionCount();
+
+            if (count != -1) {
+                total += count;
+            }
         }
 
-        if (bytes < 1024 * 1024) {
-            return String.format("%.2f KB",
-                    bytes / 1024.0);
+        return total;
+    }
+
+    private static long getGcCollectionTime() {
+
+        long total = 0;
+
+        List<GarbageCollectorMXBean> beans =
+                ManagementFactory.getGarbageCollectorMXBeans();
+
+        for (GarbageCollectorMXBean bean : beans) {
+
+            long time = bean.getCollectionTime();
+
+            if (time != -1) {
+                total += time;
+            }
         }
 
-        if (bytes < 1024 * 1024 * 1024) {
-            return String.format("%.2f MB",
-                    bytes / (1024.0 * 1024));
-        }
-
-        return String.format("%.2f GB",
-                bytes / (1024.0 * 1024 * 1024));
+        return total;
     }
 }
