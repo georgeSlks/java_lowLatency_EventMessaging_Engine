@@ -2,13 +2,13 @@ package engine;
 
 public class EventBus {
 
-    private final EventProcessor processor;
+    private final Partition partition;
 
-    public EventBus(EventProcessor processor) {
-        this.processor = processor;
+    public EventBus(Partition partition) {
+        this.partition = partition;
     }
 
     public void publish(Event event) {
-        processor.process(event);
+        partition.publish(event);
     }
 }
