@@ -18,6 +18,9 @@ public class RingBuffer {
     // Written only by the producer, read by the consumer.
     private volatile long tail;
 
+    // Written only vy the producer.
+    private long cachedHead;
+
     public RingBuffer(int capacity) {
         if (capacity <= 0) {
             throw new IllegalArgumentException(
@@ -34,7 +37,15 @@ public class RingBuffer {
         Objects.requireNonNull(event, "Event must not be null");
 
         long currentTail = tail;
-        long currentHead = head;
+        long currentHead = chachedHead;
+
+        if (currentTail - currentHead >= capacity) {
+           
+            currentHead = head;
+            cachedHead = currentHead;
+
+        }
+
 
         if (currentTail - currentHead >= capacity) {
             throw new IllegalStateException("RingBuffer is full");
