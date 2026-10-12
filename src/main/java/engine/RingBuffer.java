@@ -18,8 +18,11 @@ public class RingBuffer {
     // Written only by the producer, read by the consumer.
     private volatile long tail;
 
-    // Written only vy the producer.
+    // Written only by the producer.
     private long cachedHead;
+    // Written only by the consumer.
+    private long cachedTail;
+
 
     public RingBuffer(int capacity) {
         if (capacity <= 0) {
@@ -37,7 +40,7 @@ public class RingBuffer {
         Objects.requireNonNull(event, "Event must not be null");
 
         long currentTail = tail;
-        long currentHead = chachedHead;
+        long currentHead = cachedHead;
 
         if (currentTail - currentHead >= capacity) {
            
@@ -63,10 +66,18 @@ public class RingBuffer {
     // Single consumer only.
     public Event poll() {
         long currentHead = head;
-        long currentTail = tail;
+        long currentTail = cachedTail;
 
-        if (currentHead >= currentTail) {
+        if (currentHead == currentTail) {
+
+            currentTail = tail;
+            cachedTail = currentTail;
+
+            if (currentHead == currentTail) {
+            
             return null;
+        
+            }
         }
 
         int index = (int) (currentHead % capacity);
