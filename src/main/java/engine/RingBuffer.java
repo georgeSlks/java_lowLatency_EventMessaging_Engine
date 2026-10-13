@@ -1,28 +1,23 @@
-/* Single Consumer Single Producer Concurent Ring Buffer
-
-EventBus[(Puplish Event)]-> Partition[publish(event)] -> RingBuffer[event storing and transferring] -> EventProcessor[process(event)]
-*/
-
 package engine;
 
 import java.util.Objects;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class RingBuffer {
 
     private final Event[] buffer;
     private final int capacity;
 
-    // Written only by the consumer, read by the producer.
-    private volatile long head;
+    private int head;
+    private int tail;
+    private int size;
 
-    // Written only by the producer, read by the consumer.
-    private volatile long tail;
+    private boolean closed;
 
-    // Written only by the producer.
-    private long cachedHead;
-    // Written only by the consumer.
-    private long cachedTail;
-
+    private final ReentrantLock lock = new ReentrantLock();
+    private final Condition notEmpty = lock.newCondition();
+    private final Condition notFull = lock.newCondition();
 
     public RingBuffer(int capacity) {
         if (capacity <= 0) {
@@ -35,71 +30,72 @@ public class RingBuffer {
         this.buffer = new Event[capacity];
     }
 
-    // Single producer only.
-    public void add(Event event) {
+    // Blocks while the buffer is full.
+    // Supports one producer and one consumer, as designed.
+    public void add(Event event) throws InterruptedException {
         Objects.requireNonNull(event, "Event must not be null");
 
-        long currentTail = tail;
-        long currentHead = cachedHead;
-
-        if (currentTail - currentHead >= capacity) {
-           
-            currentHead = head;
-            cachedHead = currentHead;
-
-        }
-
-
-        if (currentTail - currentHead >= capacity) {
-            throw new IllegalStateException("RingBuffer is full");
-        }
-
-        int index = (int) (currentTail % capacity);
-
-        // Write the event.
-        buffer[index] = event;
-
-        // Publish the event to the consumer.
-        tail = currentTail + 1;
-    }
-
-    // Single consumer only.
-    public Event poll() {
-        long currentHead = head;
-        long currentTail = cachedTail;
-
-        if (currentHead == currentTail) {
-
-            currentTail = tail;
-            cachedTail = currentTail;
-
-            if (currentHead == currentTail) {
-            
-            return null;
-        
+        lock.lockInterruptibly();
+        try {
+            while (size == capacity && !closed) {
+                notFull.await();
             }
+
+            if (closed) {
+                throw new IllegalStateException(
+                    "RingBuffer is closed"
+                );
+            }
+
+            buffer[tail] = event;
+            tail = (tail + 1) % capacity;
+            size++;
+
+            notEmpty.signal();
+        } finally {
+            lock.unlock();
         }
-
-        int index = (int) (currentHead % capacity);
-
-        // Read the published event
-        Event event = buffer[index];
-
-        // Release the slot for the next use.
-        buffer[index] = null;
-
-        // Publish the consumer change.
-        head = currentHead + 1;
-
-        return event;
     }
 
-    public boolean isEmpty() {
-        return head >= tail;
+    // Blocks while empty. 
+    // Returns null after close and drain.
+    public Event poll() throws InterruptedException {
+        lock.lockInterruptibly();
+        try {
+            while (size == 0 && !closed) {
+                notEmpty.await();
+            }
+
+            if (size == 0) {
+                return null;
+            }
+
+            Event event = buffer[head];
+            buffer[head] = null;
+
+            head = (head + 1) % capacity;
+            size--;
+
+            notFull.signal();
+
+            return event;
+        } finally {
+            lock.unlock();
+        }
     }
 
-    public boolean isFull() {
-        return tail - head >= capacity;
+    // Stops new publications and wakes all waiting threads.
+    // Also , already published events remain available to the consumer(both are act on different threads).
+    public void close() {
+        lock.lock();
+        try {
+            closed = true;
+
+            notEmpty.signalAll();
+            notFull.signalAll();
+        } finally {
+            lock.unlock();
+        }
     }
 
     public int capacity() {
