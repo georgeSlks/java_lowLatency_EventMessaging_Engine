@@ -8,7 +8,7 @@ public class EventBus {
         this.partition = partition;
     }
 
-    public void publish(Event event) {
+    public void publish(Event event) throws InterruptedException {
         partition.publish(event);
     }
 }
