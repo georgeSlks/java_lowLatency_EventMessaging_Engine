@@ -4,33 +4,43 @@ import java.time.Instant;
 
 public class Main {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
 
-        // Create the processing components
-        EventProcessor processor = new EventProcessor();
-
-        // Create the buffer and partition
         RingBuffer ringBuffer = new RingBuffer(10);
         Partition partition = new Partition(ringBuffer);
 
-        // Create the consumer
+        EventProcessor processor = new EventProcessor();
         EventConsumer consumer = new EventConsumer(partition, processor);
-
-        // Create the event bus
         EventBus eventBus = new EventBus(partition);
 
-        // Produce an event
-        Event event = new Event(
-                "event-1",
-                Instant.now(),
-                EventType.DATA,
-                "hello"
-        );
+        Thread consumerThread =
+                new Thread(consumer, "event-consumer");
 
-        // Send the event to the engine
-        eventBus.publish(event);
+        consumerThread.start();
 
-        // Consume and process the event
-        consumer.consume();
+        try {
+            for (int i = 1; i <= 20; i++) {
+                Event event = new Event(
+                        "event-" + i,
+                        Instant.now(),
+                        EventType.DATA,
+                        "payload-" + i
+                );
+
+                eventBus.publish(event);
+
+                System.out.println(
+                        "Published " + event.getId()
+                        + " by " + Thread.currentThread().getName()
+                );
+            }
+        } finally {
+            // Stop accepting events and let the consumer drain the queue.
+            partition.close();
+        }
+
+        consumerThread.join();
+
+        System.out.println("Messaging engine stopped.");
     }
 }
