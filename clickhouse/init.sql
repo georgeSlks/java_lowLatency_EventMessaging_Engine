@@ -1,3 +1,11 @@
+/*
+  * Create the database and events table to store retail events such as purchases.
+  * DateTime64(3) provides millisecond precision, while UTC ensures consistent timestamps.
+  */
+
+
+
+
 CREATE DATABASE IF NOT EXISTS retailtech;
 
 CREATE TABLE IF NOT EXISTS retailtech.events
