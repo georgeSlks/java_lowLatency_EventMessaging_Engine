@@ -3,9 +3,6 @@
   * DateTime64(9) provides nanosecond precision, while UTC ensures consistent timestamps.
   */
 
-
-
-
 CREATE DATABASE IF NOT EXISTS retailtech;
 
 CREATE TABLE IF NOT EXISTS retailtech.events
