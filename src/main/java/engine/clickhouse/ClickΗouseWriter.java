@@ -38,7 +38,7 @@ public final class ClickHouseWriter {
                 .append("\",\"event_type\":\"")
                 .append(escape(event.getType().name()))
                 .append("\",\"payload\":\"")
-                .append(escape(event.getPayload()))
+                .append(escape(String.valueOf(event.getPayload())))
                 .append("\"}\n");
         }
 
