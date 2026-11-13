@@ -1,46 +1,80 @@
+
 package engine;
 
-import java.time.Instant;
+import engine.network.NetworkServer;
 
-public class Main {
+public final class Main {
 
-    public static void main(String[] args) throws InterruptedException {
+    private static final int PORT = 8080;
+    private static final int RING_BUFFER_CAPACITY = 1024;
 
-        RingBuffer ringBuffer = new RingBuffer(10);
-        Partition partition = new Partition(ringBuffer);
+    private Main() {
+    }
 
-        EventProcessor processor = new EventProcessor();
-        EventConsumer consumer = new EventConsumer(partition, processor);
-        EventBus eventBus = new EventBus(partition);
+    public static void main(String[] args) throws Exception {
+
+        RingBuffer ringBuffer =
+                new RingBuffer(RING_BUFFER_CAPACITY);
+
+        Partition partition =
+                new Partition(ringBuffer);
+
+        EventBus eventBus =
+                new EventBus(partition);
+
+        EventProcessor processor =
+                new EventProcessor();
+
+        EventConsumer consumer =
+                new EventConsumer(partition, processor);
 
         Thread consumerThread =
                 new Thread(consumer, "event-consumer");
 
+        NetworkServer networkServer =
+                new NetworkServer(PORT, eventBus);
+
+        Runtime.getRuntime().addShutdownHook(
+                new Thread(() -> {
+                    System.out.println(
+                            "Shutdown signal received..."
+                    );
+
+                    try {
+                        networkServer.close();
+                    } catch (Exception e) {
+                        System.err.println(
+                                "Error closing network server: "
+                                        + e.getMessage()
+                        );
+                    }
+                }, "shutdown-hook")
+        );
+
+        //Start application
+        System.out.println("Starting Event Messaging Engine...");
+        System.out.println(
+                "RingBuffer capacity: " + RING_BUFFER_CAPACITY
+        );
+
         consumerThread.start();
 
         try {
-            for (int i = 1; i <= 20; i++) {
-                Event event = new Event(
-                        "event-" + i,
-                        Instant.now(),
-                        EventType.DATA,
-                        "payload-" + i
-                );
-
-                eventBus.publish(event);
-
-                System.out.println(
-                        "Published " + event.getId()
-                        + " by " + Thread.currentThread().getName()
-                );
-            }
+            networkServer.start();
         } finally {
-            // Stop accepting events and let the consumer drain the queue.
+
+            // Stop accepting new events
+            networkServer.close();
+
+            // Drain remaining events
             partition.close();
+
+            // Wait for consumer termination
+            consumerThread.join();
+
+            System.out.println(
+                    "Event Messaging Engine stopped."
+            );
         }
-
-        consumerThread.join();
-
-        System.out.println("Messaging engine stopped.");
     }
 }
