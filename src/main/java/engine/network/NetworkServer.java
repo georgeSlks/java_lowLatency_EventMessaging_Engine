@@ -26,6 +26,8 @@ public class NetworkServer implements AutoCloseable {
             ConcurrentHashMap.newKeySet();
 
     private volatile boolean running;
+    private volatile boolean closed;
+
     private ServerSocket serverSocket;
 
     public NetworkServer(int port, EventBus eventBus) {
@@ -40,49 +42,55 @@ public class NetworkServer implements AutoCloseable {
 
     public void start() throws IOException {
 
-        if (running) {
-            throw new IllegalStateException("Server is already running");
+        if (running || closed) {
+            throw new IllegalStateException(
+                    "Server cannot be started"
+            );
         }
 
         serverSocket = new ServerSocket(port);
         running = true;
 
-        System.out.println("Network server listening on port " + port);
+        System.out.println(
+                "Network server listening on port " + port
+        );
 
-        try {
-            while (running) {
+        while (running) {
 
-                try {
-                    Socket client = serverSocket.accept();
+            try {
+                Socket client = serverSocket.accept();
 
-                    activeClients.add(client);
+                activeClients.add(client);
 
-                    clientExecutor.execute(() -> {
-                        try {
-                            new ClientHandler(client, eventBus).run();
-                        } finally {
-                            activeClients.remove(client);
-                        }
-                    });
-
-                } catch (SocketException e) {
-                    if (running) {
-                        throw e;
+                clientExecutor.execute(() -> {
+                    try {
+                        new ClientHandler(client, eventBus).run();
+                    } finally {
+                        activeClients.remove(client);
                     }
+                });
+
+            } catch (SocketException e) {
+
+                if (running) {
+                    throw e;
                 }
             }
-
-        } finally {
-            close();
         }
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
 
+        if (closed) {
+            return;
+        }
+
+        closed = true;
         running = false;
 
-        // Close server socket
+        System.out.println("Stopping network server...");
+
         try {
             if (serverSocket != null) {
                 serverSocket.close();
@@ -90,7 +98,6 @@ public class NetworkServer implements AutoCloseable {
         } catch (IOException ignored) {
         }
 
-        // Close active client connections
         for (Socket client : activeClients) {
             try {
                 client.close();
@@ -98,7 +105,6 @@ public class NetworkServer implements AutoCloseable {
             }
         }
 
-        // Stop client threads
         clientExecutor.shutdownNow();
 
         System.out.println("Network server stopped.");
