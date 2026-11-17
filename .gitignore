@@ -6,3 +6,6 @@ out/
 
 # Environment variables
 .env
+
+# Python virtual enviroment
+.venv/
