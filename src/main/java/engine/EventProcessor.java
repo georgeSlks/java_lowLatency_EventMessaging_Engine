@@ -1,12 +1,21 @@
+
 package engine;
+
+import engine.clickhouseConnectors.http.ClickHouseHttpWriter;
+
+import java.io.IOException;
 
 public class EventProcessor {
 
-    public void process(Event event) {
-        System.out.println(
-                "Processing event: " + event.getId()
-                        + " type=" + event.getType()
-                        + " payload=" + event.getPayload()
-        );
+    private final ClickHouseHttpWriter writer;
+
+    public EventProcessor(ClickHouseHttpWriter writer) {
+        this.writer = writer;
+    }
+
+    public void process(Event event)
+            throws IOException, InterruptedException {
+
+        writer.write(event);
     }
 }
