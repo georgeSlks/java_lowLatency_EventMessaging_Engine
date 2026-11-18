@@ -1,7 +1,10 @@
+# Compiled output
 out/
 
+# Maven build output
 **/target/
 
+# Maven shaded plugin output
 **/dependency-reduced-pom.xml
 
 # Environment variables
