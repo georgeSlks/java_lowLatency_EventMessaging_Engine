@@ -1,6 +1,9 @@
 
 package engine;
 
+import engine.clickhouseConnectors.config.ClickHouseConfig;
+import engine.clickhouseConnectors.http.ClickHouseHttpClient;
+import engine.clickhouseConnectors.http.ClickHouseHttpWriter;
 import engine.network.NetworkServer;
 
 public final class Main {
@@ -13,6 +16,18 @@ public final class Main {
 
     public static void main(String[] args) throws Exception {
 
+        // Initialize ClickHouse configuration
+        ClickHouseConfig config = new ClickHouseConfig();
+
+        // Initialize ClickHouse HTTP client
+        ClickHouseHttpClient client =
+                new ClickHouseHttpClient(config);
+
+        // Initialize ClickHouse writer
+        ClickHouseHttpWriter writer =
+                new ClickHouseHttpWriter(client, config);
+
+        // Initialize event processing pipeline
         RingBuffer ringBuffer =
                 new RingBuffer(RING_BUFFER_CAPACITY);
 
@@ -23,7 +38,7 @@ public final class Main {
                 new EventBus(partition);
 
         EventProcessor processor =
-                new EventProcessor();
+                new EventProcessor(writer);
 
         EventConsumer consumer =
                 new EventConsumer(partition, processor);
@@ -31,42 +46,46 @@ public final class Main {
         Thread consumerThread =
                 new Thread(consumer, "event-consumer");
 
+        // Initialize network server
         NetworkServer networkServer =
                 new NetworkServer(PORT, eventBus);
 
+        // Shutdown hook
         Runtime.getRuntime().addShutdownHook(
                 new Thread(() -> {
                     System.out.println(
                             "Shutdown signal received..."
                     );
 
-                    try {
-                        networkServer.close();
-                    } catch (Exception e) {
-                        System.err.println(
-                                "Error closing network server: "
-                                        + e.getMessage()
-                        );
-                    }
+                    networkServer.close();
                 }, "shutdown-hook")
         );
 
-        //Start application
-        System.out.println("Starting Event Messaging Engine...");
+        System.out.println(
+                "Starting Event Messaging Engine..."
+        );
+
         System.out.println(
                 "RingBuffer capacity: " + RING_BUFFER_CAPACITY
         );
 
+        System.out.println(
+                "ClickHouse host: " + config.getHost()
+        );
+
+        // Start consumer
         consumerThread.start();
 
         try {
+            // Start accepting TCP connections
             networkServer.start();
+
         } finally {
 
             // Stop accepting new events
             networkServer.close();
 
-            // Drain remaining events
+            // Close buffer and drain remaining events
             partition.close();
 
             // Wait for consumer termination
