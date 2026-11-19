@@ -1,4 +1,7 @@
+
 package engine;
+
+import java.io.IOException;
 
 public class EventConsumer implements Runnable {
 
@@ -15,8 +18,10 @@ public class EventConsumer implements Runnable {
 
     @Override
     public void run() {
-        try {
-            while (true) {
+
+        while (true) {
+
+            try {
                 Event event = partition.consume();
 
                 if (event == null) {
@@ -25,9 +30,18 @@ public class EventConsumer implements Runnable {
                 }
 
                 processor.process(event);
+
+            } catch (InterruptedException e) {
+
+                Thread.currentThread().interrupt();
+                return;
+
+            } catch (IOException e) {
+
+                System.err.println(
+                        "Event processing failed: " + e.getMessage()
+                );
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
         }
     }
 }
