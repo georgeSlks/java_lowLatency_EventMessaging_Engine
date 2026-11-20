@@ -9,9 +9,6 @@ public class ClickHouseConfig {
     private final String password;
 
     private final int httpPort;
-    private final int nativePort;
-
-    private final String transport;
 
     public ClickHouseConfig() {
 
@@ -23,12 +20,6 @@ public class ClickHouseConfig {
         this.httpPort = Integer.parseInt(
                 System.getenv("CLICKHOUSE_HTTP_PORT")
         );
-
-        this.nativePort = Integer.parseInt(
-                System.getenv("CLICKHOUSE_NATIVE_PORT")
-        );
-
-        this.transport = System.getenv("CLICKHOUSE_TRANSPORT");
 
         validate();
     }
@@ -50,14 +41,6 @@ public class ClickHouseConfig {
         if (httpPort < 1 || httpPort > 65535) {
             throw new IllegalArgumentException("Invalid HTTP port");
         }
-
-        if (nativePort < 1 || nativePort > 65535) {
-            throw new IllegalArgumentException("Invalid Native TCP port");
-        }
-
-        if (!transport.equals("http") && !transport.equals("native_tcp")) {
-            throw new IllegalArgumentException("Invalid ClickHouse transport");
-        }
     }
 
     public String getHost() {
@@ -78,13 +61,5 @@ public class ClickHouseConfig {
 
     public int getHttpPort() {
         return httpPort;
-    }
-
-    public int getNativePort() {
-        return nativePort;
-    }
-
-    public String getTransport() {
-        return transport;
     }
 }
